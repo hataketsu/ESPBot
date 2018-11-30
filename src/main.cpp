@@ -1,12 +1,11 @@
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
+#include <WiFiManager.h>
 
 
 static const char *const IN_TOPIC = "hataketsucontrol/in";
 static const char *const OUT_TOPIC = "hataketsucontrol/out";
-const char *ssid = "Franxx";
 
-const char *password = "nopenope";
 const char *mqtt_server = "broker.mqtt-dashboard.com";
 
 WiFiClient espClient;
@@ -18,26 +17,6 @@ void sendBack();
 
 int PINS[] = {D0, D1, D2, D3, D4, D5, D6, D7, D8};
 
-void setup_wifi() {
-
-    Serial.println();
-    Serial.print("Connecting to ");
-    Serial.println(ssid);
-
-    WiFi.begin(ssid, password);
-
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
-        Serial.print(".");
-    }
-
-    randomSeed(micros());
-
-    Serial.println("");
-    Serial.println("WiFi connected");
-    Serial.println("IP address: ");
-    Serial.println(WiFi.localIP());
-}
 
 void callback(char *topic, byte *payload, unsigned int length) {
     Serial.print("Message arrived [");
@@ -70,7 +49,7 @@ void sendBack() {
     for (int pin :PINS) {
         buf.concat(digitalRead(pin));
     }
-    client.publish(OUT_TOPIC,buf.c_str());
+    client.publish(OUT_TOPIC, buf.c_str());
 }
 
 void reconnect() {
@@ -96,15 +75,16 @@ void setup() {
         pinMode(pin, OUTPUT);
     }
     Serial.begin(9600);
+    WiFiManager wifiManager;
+
+    wifiManager.autoConnect("AutoConnectAP");\
+
     delay(1000);
-    setup_wifi();
     client.setServer(mqtt_server, 1883);
     client.setCallback(callback);
 }
 
 void loop() {
-    while (WiFi.status() != WL_CONNECTED)
-        setup_wifi();
     if (!client.connected()) {
         reconnect();
     }
