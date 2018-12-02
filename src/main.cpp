@@ -3,8 +3,8 @@
 #include <WiFiManager.h>
 
 
-static const char *const IN_TOPIC = "hataketsucontrol/in";
-static const char *const OUT_TOPIC = "hataketsucontrol/out";
+static const char *const IN_TOPIC = "hataketsucontrolx/in";
+static const char *const OUT_TOPIC = "hataketsucontrolx/out";
 
 const char *mqtt_server = "broker.mqtt-dashboard.com";
 
@@ -16,7 +16,7 @@ void onReceivingMessage(String string);
 void sendBack();
 
 int PINS[] = {D0, D1, D2, D3, D4, D5, D6, D7, D8};
-
+float CMDS[] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 void callback(char *topic, byte *payload, unsigned int length) {
     Serial.print("Message arrived [");
@@ -34,20 +34,24 @@ void onReceivingMessage(String msg) {
     if (command.equals("poll")) {
         sendBack();
     } else {
-        int cmd = command.toInt();
+        float cmd = command.toFloat();
         int val = value.toInt();
 
         Serial.println(cmd);
         Serial.println(val);
-        digitalWrite(PINS[val], cmd);
+        CMDS[val] = cmd;
+        if (cmd == -1) {
+            digitalWrite(val, HIGH);
+        }
         sendBack();
     }
 }
 
 void sendBack() {
     String buf = "";
-    for (int pin :PINS) {
-        buf.concat(digitalRead(pin));
+    for (float cmd :CMDS) {
+        buf.concat(cmd);
+        buf.concat(';');
     }
     client.publish(OUT_TOPIC, buf.c_str());
 }
@@ -77,8 +81,8 @@ void setup() {
     Serial.begin(9600);
     WiFiManager wifiManager;
 
-    wifiManager.autoConnect("AutoConnectAP");\
-
+    wifiManager.autoConnect("AutoConnectAP");
+//    wifiManager.resetSettings();
     delay(1000);
     client.setServer(mqtt_server, 1883);
     client.setCallback(callback);
@@ -89,4 +93,15 @@ void loop() {
         reconnect();
     }
     client.loop();
+    for (int i = 0; i < 9; ++i) {
+        int pin = PINS[i];
+        float cmd = CMDS[i];
+        if (cmd == -1) //blink
+        {
+            digitalWrite(pin, 1 - digitalRead(pin));
+        } else {
+            analogWrite(pin, 1023 * cmd);
+        }
+    }
+    delay(200);
 }
