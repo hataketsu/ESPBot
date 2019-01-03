@@ -5,6 +5,7 @@
 #include "function/GenericFuntion.h"
 #include "function/OnOffFunc.h"
 #include "function/DimmerFunc.h"
+#include "function/RGBFunc.h"
 #include <ArduinoJson.h>
 #include <ArduinoOTA.h>
 
@@ -27,12 +28,32 @@ void reportJson(const JsonObject &data);
 
 void save_names();
 
+#define SMART_PLUG
+//#define TEST_PROTOTYPE
+//#define NIGHT_LAMP
+
+#ifdef  TEST_PROTOTYPE
 GenericFuntion *funtions[] = {
         (GenericFuntion *) new OnOffFunc(D2),
         (GenericFuntion *) new DimmerFunc(D3),
         (GenericFuntion *) new OnOffFunc(D4),
         (GenericFuntion *) new DimmerFunc(D5),
         (GenericFuntion *) new OnOffFunc(D6),};
+#endif
+
+#ifdef  SMART_PLUG
+GenericFuntion *funtions[] = {
+        (GenericFuntion *) new OnOffFunc(D1),
+        (GenericFuntion *) new OnOffFunc(D2),
+        (GenericFuntion *) new OnOffFunc(D5),
+};
+#endif
+
+#ifdef  NIGHT_LAMP
+GenericFuntion *funtions[] = {
+        (GenericFuntion *) new RGBFunc(D3, D5, D6)
+};
+#endif
 
 
 void callback(char *topic, byte *payload, unsigned int length) {
@@ -88,6 +109,16 @@ void onReceivingMessage(String msg) {
                 report_func(func);
             }
         }
+    } else if (command.equals("color")) {
+        String id = request["id"];
+        String name = request["name"];
+        String color = request["color"];
+        for (GenericFuntion *func:funtions) {
+            if (func->UID.equals(id) || func->name.equals(name)) {
+                ((RGBFunc *) func)->set_color(color);
+                report_func(func);
+            }
+        }
     }
 }
 
@@ -109,6 +140,7 @@ void save_names() {
     StaticJsonBuffer<MAX_ROM> buffer;
     JsonArray &names = buffer.createArray();
     for (GenericFuntion *func:funtions) {
+        names.add(func->UID);
         names.add(func->name);
     }
     String names_str = "";
@@ -133,7 +165,9 @@ void read_names() {
     Serial.println(names_str);
     JsonArray &names = buffer.parseArray(names_str);
     for (int j = 0; j < sizeof(funtions) / sizeof(GenericFuntion *); ++j) {
-        const char *name = names[j];
+        const char *id = names[j * 2];
+        const char *name = names[j * 2 + 1];
+        funtions[j]->UID = String(id);
         funtions[j]->name = String(name);
         Serial.println(name);
     }
@@ -188,6 +222,9 @@ void loop() {
     }
     if (!client.connected()) {
         reconnect();
+        for (GenericFuntion *func:funtions) {
+            report_func(func);
+        }
     }
     client.loop();
 }
